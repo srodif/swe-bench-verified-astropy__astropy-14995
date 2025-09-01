@@ -1310,3 +1310,57 @@ def test_raise_method_not_supported():
     # raise error for unsupported propagation operations:
     with pytest.raises(ValueError):
         ndd1.uncertainty.propagate(np.mod, ndd2, result, correlation)
+
+
+def test_mask_propagation_one_operand_no_mask():
+    """
+    Test that mask propagation works correctly when one operand doesn't have a mask.
+    
+    This is a regression test for issue where NDDataRef mask propagation fails 
+    when one of the operands does not have a mask and handle_mask=np.bitwise_or is used.
+    """
+    # Test data
+    array = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
+    mask = np.array([[0, 1, 64], [8, 0, 1], [2, 1, 0]])
+
+    nref_nomask = NDDataArithmetic(array)
+    nref_mask = NDDataArithmetic(array, mask=mask)
+
+    # Test case 1: multiply no mask by constant (no mask * no mask)
+    result = nref_nomask.multiply(1., handle_mask=np.bitwise_or)
+    assert result.mask is None
+
+    # Test case 2: multiply no mask by itself (no mask * no mask)
+    result = nref_nomask.multiply(nref_nomask, handle_mask=np.bitwise_or)
+    assert result.mask is None
+
+    # Test case 3: multiply mask by constant (mask * no mask) - this was failing
+    result = nref_mask.multiply(1., handle_mask=np.bitwise_or)
+    assert_array_equal(result.mask, mask)
+
+    # Test case 4: multiply mask by itself (mask * mask)
+    result = nref_mask.multiply(nref_mask, handle_mask=np.bitwise_or)
+    assert_array_equal(result.mask, mask | mask)  # should be same as original mask
+
+    # Test case 5: multiply mask by no mask (mask * no mask) - this was failing
+    result = nref_mask.multiply(nref_nomask, handle_mask=np.bitwise_or)
+    assert_array_equal(result.mask, mask)
+
+    # Test the same with other operations
+    # Test add
+    result = nref_mask.add(1., handle_mask=np.bitwise_or)
+    assert_array_equal(result.mask, mask)
+
+    result = nref_mask.add(nref_nomask, handle_mask=np.bitwise_or)
+    assert_array_equal(result.mask, mask)
+
+    # Test subtract
+    result = nref_mask.subtract(1., handle_mask=np.bitwise_or)
+    assert_array_equal(result.mask, mask)
+
+    result = nref_mask.subtract(nref_nomask, handle_mask=np.bitwise_or)
+    assert_array_equal(result.mask, mask)
+
+    # Test divide
+    result = nref_mask.divide(1., handle_mask=np.bitwise_or)
+    assert_array_equal(result.mask, mask)
